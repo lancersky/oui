@@ -4,6 +4,20 @@
 # This is free software, licensed under the MIT.
 #
 
+# Package builds include rules.mk but not necessarily include/version.mk.
+# Pull it in here so VERSION_NUMBER is available when selecting a filename-safe
+# package version suffix separator.
+ifeq ($(origin VERSION_NUMBER), undefined)
+  ifneq ($(TOPDIR),)
+    include $(TOPDIR)/include/version.mk
+  endif
+endif
+
+# OpenWrt 21.02 toolchains may reject local ipk file names containing '~'.
+# Keep automatic compatibility while still allowing override from make command line.
+# Default to the safe separator when VERSION_NUMBER is unavailable.
+OUI_PKGVER_SUFFIX_SEP ?= $(if $(filter-out undefined,$(origin VERSION_NUMBER)),$(if $(filter 21.02%,$(VERSION_NUMBER)),-g,~),-g)
+
 define findrev
   $(shell \
     if git log -1 >/dev/null 2>/dev/null; then \
@@ -11,7 +25,7 @@ define findrev
       if [ -n "$$1" ]; then
         secs="$$(($$1 % 86400))"; \
         yday="$$(date --utc --date="@$$1" "+%y.%j")"; \
-        printf '%s.%05d~%s' "$$yday" "$$secs" "$$2"; \
+        printf '%s.%05d%s%s' "$$yday" "$$secs" "$(OUI_PKGVER_SUFFIX_SEP)" "$$2"; \
       else \
         echo "0"; \
       fi; \
