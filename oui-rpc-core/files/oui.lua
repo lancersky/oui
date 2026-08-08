@@ -13,12 +13,16 @@ local sys = require 'eco.sys'
 local log = require 'eco.log'
 local cjson = require 'cjson'
 local uci = require 'eco.uci'
+local eco = require 'eco'
 
 local rpc = require 'oui.rpc'
 
-eco.panic_hook = function(err)
-    os.remove('/var/run/oui-rpc.sock')
-    log.err('panic:', err)
+local sock_path = '/var/run/oui.sock'
+
+eco.set_panic_hook = function(traceback1, traceback2)
+    os.remove(sock_path)
+    log.err(traceback1)
+    log.err(traceback2)
 end
 
 local function trace_hook(event)
@@ -526,8 +530,7 @@ local function handle_scgi(c)
 end
 
 local function run_scgi_server()
-    local path = '/var/run/oui.sock'
-    local s, err = socket.listen_unix(path)
+    local s, err = socket.listen_unix(sock_path)
     if not s then
         error(err)
     end
@@ -536,7 +539,7 @@ local function run_scgi_server()
     if username then
         local pw = sys.getpwnam(username)
         if pw then
-            file.chown(path, pw.uid)
+            file.chown(sock_path, pw.uid)
         end
     end
 
@@ -579,10 +582,6 @@ local function ubus_init()
             end, { sid = ubus.STRING }
         }
     })
-
-    while true do
-        time.sleep(1000)
-    end
 end
 
 rpc.init()
@@ -590,7 +589,6 @@ rpc.load_acl()
 
 parse_config()
 init_signal()
-
-eco.run(ubus_init)
+ubus_init()
 
 run_scgi_server()
